@@ -1,4 +1,4 @@
-from src.utils.parsers import populate_database, parse_colors, generate_json
+from src.utils.parsers import populate_database, parse_colors
 
 def fetch_colors():
     _df = populate_database() ## fetch
