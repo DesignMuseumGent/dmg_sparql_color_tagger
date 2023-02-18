@@ -17,11 +17,10 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-## todo: refactor use supabase.
 def populate_database():
     # _initDF = pd.DataFrame(columns=columns)
 
-    _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_manifest").execute() ## fetch object number + manifest from supabase
+    _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_manifest").eq("iiif_manifest", "null").execute() ## fetch object number + manifest from supabase
     x = _x.json() # parse as json
     x = json.loads(x) # load
     for i in range(0, len(x["data"])): #iterate over all objects
@@ -46,7 +45,7 @@ def populate_database():
 
 
 def parse_colors():
-    _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_image_uris").execute()
+    _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_image_uris", "HEX_values").execute()
     x = _x.json()  # parse as json
     x = json.loads(x)  # load
 
@@ -54,25 +53,29 @@ def parse_colors():
         hex_list = []
         color_name_list = []
         on = x["data"][i]["objectNumber"]
-        print(x["data"][i]["iiif_image_uris"])
-        try:
-            for z in range(0, len((x["data"][i]["iiif_image_uris"]))):
-                img = imageio.imread((x["data"][i]["iiif_image_uris"][z]))
-                print("image: " +x["data"][i]["iiif_image_uris"][z] + " done")
-                print("----------------------------------------------------------------------------------------------")
+        if x["data"][i]["HEX_values"] ==None:
+            print("can't fetch" + x["data"][i]["objectNumber"])
+            try:
+                for z in range(0, len((x["data"][i]["iiif_image_uris"]))):
+                    img = imageio.imread((x["data"][i]["iiif_image_uris"][z]))
+                    print("image: " +x["data"][i]["iiif_image_uris"][z] + " done")
+                    print("----------------------------------------------------------------------------------------------")
 
-                modified_image = preprocess(img)
-                hex_list.append(fetch_hex(modified_image))
+                    modified_image = preprocess(img)
+                    hex_list.append(fetch_hex(modified_image))
 
-                modified_image = preprocess(img)
-                color_name_list.append(fetch_color_names(modified_image))
+                    modified_image = preprocess(img)
+                    color_name_list.append(fetch_color_names(modified_image))
 
-            # insert list into supabase
-            data = supabase.table("dmg_objects_LDES").update({"HEX_values": hex_list}).eq("objectNumber",on).execute() # insert HEX
-            data = supabase.table("dmg_objects_LDES").update({"color_names": color_name_list}).eq("objectNumber",on).execute() # insert color_names
-            print(color_name_list)
+                # insert list into supabase
+                data = supabase.table("dmg_objects_LDES").update({"HEX_values": hex_list}).eq("objectNumber",on).execute() # insert HEX
+                data = supabase.table("dmg_objects_LDES").update({"color_names": color_name_list}).eq("objectNumber",on).execute() # insert color_names
+                print(color_name_list)
 
-        except Exception:
+
+            except Exception:
+                pass
+        else:
             pass
     return
 

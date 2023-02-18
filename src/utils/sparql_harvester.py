@@ -9,8 +9,6 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-import json
-
 def sparql_harvester():
     dmg_json = []
     sparql = SPARQLWrapper(
