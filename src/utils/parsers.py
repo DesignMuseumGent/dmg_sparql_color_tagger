@@ -8,37 +8,63 @@ import json
 import os
 from supabase import create_client, Client
 import cv2
+from datetime import date, timedelta, datetime
+#import datetime
+from dateutil import parser
 
 SUPABASE_URL = "https://nrjxejxbxniijbmquudy.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5yanhlanhieG5paWpibXF1dWR5Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTY3NDMwNTY0NCwiZXhwIjoxOTg5ODgxNjQ0fQ.3u7yTeQwlheX12UbEzoHMgouRHNEwhKmvWLtNgpkdBY"
-
 
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def populate_database():
-    # _initDF = pd.DataFrame(columns=columns)
+##now = datetime.now()
 
-    _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_manifest").eq("iiif_manifest", "null").execute() ## fetch object number + manifest from supabase
+def populate_database():
+    ## fetch object number + manifest from supabase
+    _x = supabase.table('dmg_objects_LDES')\
+        .select("objectNumber, iiif_manifest, iiif_image_uris, generated_at_time")\
+        .execute()
+
     x = _x.json() # parse as json
     x = json.loads(x) # load
+
+
+    print(x)
     for i in range(0, len(x["data"])): #iterate over all objects
+
+        _date = x["data"][i]["generated_at_time"].split("T")[0]
+        _d = datetime.strptime(_date, '%Y-%m-%d')
+        print(_d)
+
+        days_before =  datetime.strptime((date.today() - timedelta(days=200)).isoformat(), '%Y-%m-%d') ## fetch only objects that were published or updated in the last 7 days.
+        #print(days_before)
+
+
         _imageList = []
+        _licenseList = []
+        _attributionList = []
         on = x["data"][i]["objectNumber"]
         try:
-            url = x["data"][i]["iiif_manifest"] # fetch IIIF Manifest URL
-            response = urlopen(url) # try to open URL
-            _json = json.loads(response.read()) # parse response as JSON
-            try:
-                for im in range(0, len(_json) - 1): # iterate over images in manifest.
-                    image = _json["sequences"][0]["canvases"][im]["images"][0]["resource"]["@id"]
-                    _imageList.append(image) # add individual images to temp list
-            except Exception:
-                pass
+            if _d > days_before:
+                url = x["data"][i]["iiif_manifest"] # fetch IIIF Manifest URL
+                response = urlopen(url) # try to open URL
+                _json = json.loads(response.read()) # parse response as JSON
+                try:
+                    for im in range(0, len(_json) - 1): # iterate over images in manifest.
+                        image = _json["sequences"][0]["canvases"][im]["images"][0]["resource"]["@id"]
+                        license = _json["sequences"][0]["canvases"][im]["images"][0]["license"]
+                        attribution =  _json["sequences"][0]["canvases"][im]["images"][0]["attribution"]
+                        _imageList.append(image) # add individual images to temp list
+                        _licenseList.append(license)
+                        _attributionList.append(attribution)
+                except Exception:
+                    pass
+            else: pass
 
         # insert list into supabase
-            data = supabase.table("dmg_objects_LDES").update({"iiif_image_uris": _imageList}).eq("objectNumber", on).execute()
+            data = supabase.table("dmg_objects_LDES").update({"iiif_image_uris": _imageList, "CC_Licenses":_licenseList, "attributions":_attributionList}).eq("objectNumber", on).execute()
 
         except Exception:
             print("IMAGE NOT AVAILABLE: " + str(x["data"][i]["iiif_manifest"]))
@@ -53,8 +79,8 @@ def parse_colors():
         hex_list = []
         color_name_list = []
         on = x["data"][i]["objectNumber"]
-        if x["data"][i]["HEX_values"] ==None:
-            print("can't fetch" + x["data"][i]["objectNumber"])
+        if x["data"][i]["HEX_values"] == None:
+            print("trying to fetch: " + x["data"][i]["objectNumber"])
             try:
                 for z in range(0, len((x["data"][i]["iiif_image_uris"]))):
                     img = imageio.imread((x["data"][i]["iiif_image_uris"][z]))
@@ -74,6 +100,7 @@ def parse_colors():
 
 
             except Exception:
+                print("can not fetch colors for: " + x["data"][i]["objectNumber"])
                 pass
         else:
             pass
