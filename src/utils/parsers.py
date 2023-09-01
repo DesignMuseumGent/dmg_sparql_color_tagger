@@ -38,7 +38,7 @@ def populate_database():
         _d = datetime.strptime(_date, '%Y-%m-%d')
         print(_d)
 
-        days_before =  datetime.strptime((date.today() - timedelta(days=200)).isoformat(), '%Y-%m-%d') ## fetch only objects that were published or updated in the last 7 days.
+        days_before =  datetime.strptime((date.today() - timedelta(days=2000000)).isoformat(), '%Y-%m-%d') ## fetch only objects that were published or updated in the last 7 days.
         #print(days_before)
 
 
@@ -79,7 +79,8 @@ def parse_colors():
         hex_list = []
         color_name_list = []
         on = x["data"][i]["objectNumber"]
-        if x["data"][i]["HEX_values"] == None:
+        if x["data"][i]["HEX_values"] is None or x["data"][i]["HEX_values"] == []:
+            print("THERE IS NO DATA FOR COLOR DATA FOR: " + x["data"][i]["objectNumber"])
             print("trying to fetch: " + x["data"][i]["objectNumber"])
             try:
                 for z in range(0, len((x["data"][i]["iiif_image_uris"]))):
@@ -103,7 +104,11 @@ def parse_colors():
                 print("can not fetch colors for: " + x["data"][i]["objectNumber"])
                 pass
         else:
-            pass
+            print("SKIPPING " + x["data"][i]["objectNumber"])
+            print("already has color data:")
+            print( x["data"][i]["HEX_values"])
+
+
     return
 
 
