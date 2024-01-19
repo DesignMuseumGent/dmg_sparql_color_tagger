@@ -35,8 +35,10 @@ def fetch_objects_that_needed_color_reading():
         if not x["data"][i]["iiif_image_uris"]:
             if not x["data"][i]["CC_Licenses"] == "PERMISSION DENIED":
                 _objects_that_need_color_reading.append(x["data"][i]["objectNumber"])
+        elif not x["data"][i]["HEX_values"]:
+            _objects_that_need_color_reading.append(x["data"][i]["objectNumber"])
 
-    print("there are: " + str(len(_objects_that_need_color_reading)) + "objects with images but without colors")
+    print("there are: " + str(len(_objects_that_need_color_reading)) + " objects with images but without colors")
     return _objects_that_need_color_reading
 
 def populate_database():
@@ -48,13 +50,10 @@ def populate_database():
     x = _x.json() # parse as json
     x = json.loads(x) # load
 
-
-    print(x)
     for i in range(0, len(x["data"])): #iterate over all objects
 
         _date = x["data"][i]["generated_at_time"].split("T")[0]
         _d = datetime.strptime(_date, '%Y-%m-%d')
-        print(_d)
 
         #days_before =  datetime.strptime((date.today() - timedelta(days=2000000)).isoformat(), '%Y-%m-%d') ## fetch only objects that were published or updated in the last 7 days.
         #print(days_before)
@@ -104,11 +103,12 @@ def add_media():
             _imageList = []
             _licenseList = []
             _attributionList = []
-
-            url = x["data"][i]["LDES_raw"]["object"]["http://www.cidoc-crm.org/cidoc-crm/P129i_is_subject_of"]["@id"]  # fetch IIIF Manifest URL
-            print(url)
-
+            print(on)
             try:
+                # check if there is a manifest, if not skip.
+                url = x["data"][i]["LDES_raw"]["object"]["http://www.cidoc-crm.org/cidoc-crm/P129i_is_subject_of"][
+                    "@id"]  # fetch IIIF Manifest URL
+                print(url)
                 response = urlopen(url)  # try to open URL
                 _json = json.loads(response.read())  # parse response as JSON
 
@@ -125,17 +125,19 @@ def add_media():
                 except Exception:
                     pass
 
+                data = (supabase.table("dmg_objects_LDES").update(
+                    {
+                        "iiif_manifest": url
+                        , "iiif_image_uris": _imageList,
+                        "CC_Licenses": _licenseList,
+                        "attributions": _attributionList})
+                        .eq(
+                    "objectNumber", on).execute())
+
             except Exception:
                 pass
 
-            data = (supabase.table("dmg_objects_LDES").update(
-                {
-                    "iiif_manifest": url
-                    ,"iiif_image_uris": _imageList,
-                    "CC_Licenses": _licenseList,
-                    "attributions": _attributionList})
-                    .eq(
-                "objectNumber", on).execute())
+
 
 def parse_colors(_list):
 
