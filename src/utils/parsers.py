@@ -20,8 +20,6 @@ url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-##now = datetime.now()
-
 def fetch_objects_that_needed_color_reading():
     _objects_that_need_color_reading = []
     _x = supabase.table('dmg_objects_LDES') \
@@ -137,101 +135,61 @@ def add_media():
             except Exception:
                 pass
 
+## DATABASE MANAGEMENT
+def fetch_from_db(object_number):
+    _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_image_uris", "HEX_values", "CC_Licenses").eq(
+        "objectNumber").execute()
+    x = _x.json()
+    return json.loads(x)
 
 
-def parse_colors(_list):
+def insert_into_db(table, column, data, object_number):
+    return supabase.table("dmg_objects_LDES").update({column: data}).eq()
 
-    #parse only selected objects (list)
-    for i in range(0, len(_list)):
-        print(_list[i])
+def preprocess_and_insert(image_uris, on):
+    hex_list = []
+    color_name_list=[]
 
-        select = _list[i]
-        _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_image_uris", "HEX_values", "CC_Licenses").eq("objectNumber", select).execute()
-        x = _x.json()
-        x = json.loads(x)
+    for uri in image_uris:
+        img = imageio.imread(uri)
+        print("image: " + uri + "done")
+        print("----------------------------------------------------------------------------------------------")
 
-        hex_list = []
+        modified_image = preprocess(img)
+        hex_list.append(fetch_hex(modified_image))
 
-        color_name_list = []
-        print(x["data"][0]["objectNumber"])
-        on = x["data"][0]["objectNumber"]
+        modified_image = preprocess(img)
+        color_name_list.append(fetch_color_names(modified_image))
 
-
-        if x["data"][0]["HEX_values"] is None or x["data"][0]["HEX_values"] == []:
-            print("THERE IS NO DATA FOR COLOR DATA FOR: " + x["data"][0]["objectNumber"])
-            print("trying to fetch: " + x["data"][0]["objectNumber"])
-            try:
-                for z in range(0, len((x["data"][0]["iiif_image_uris"]))):
-
-                    img = imageio.imread((x["data"][0]["iiif_image_uris"][z]))
-                    print("image: " +x["data"][0]["iiif_image_uris"][z] + " done")
-                    print("----------------------------------------------------------------------------------------------")
-
-                    modified_image = preprocess(img)
-                    hex_list.append(fetch_hex(modified_image))
-
-                    modified_image = preprocess(img)
-                    color_name_list.append(fetch_color_names(modified_image))
-
-                # insert list into supabase
-                if color_name_list != []:
-                    data = supabase.table("dmg_objects_LDES").update({"HEX_values": hex_list}).eq("objectNumber",on).execute() # insert HEX
-                    data = supabase.table("dmg_objects_LDES").update({"color_names": color_name_list}).eq("objectNumber",on).execute() # insert color_names
-                else:
-                    print("PERMISSION DENIED")
-                    data = supabase.table("dmg_objects_LDES").update({"CC_Licenses": "PERMISSION DENIED"}).eq("objectNumber",on).execute() # insert color_names
-
-            except Exception:
-                print("can not fetch colors for: " + x["data"][0]["objectNumber"])
-
-    print(x)
+    if color_name_list:
+        insert_into_db("dmg_objects_LDES", "HEX_values", hex_list, on)
+        insert_into_db("dmg_objects_LDES", "color_names", color_name_list, on)
+    else:
+        print("PERMISSION DENIED")
+        insert_into_db("dmg_objects_LDES", "CC_Licenses", "PERMISSION DENIED", on)
 
 
-# _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_image_uris", "HEX_values").execute()
-# x = _x.json()  # parse as json
-# x = json.loads(x)  # load
-#
-# for i in range(0, len(x["data"])):
-#     hex_list = []
-#     color_name_list = []
-#     on = x["data"][i]["objectNumber"]
-#     if x["data"][i]["HEX_values"] is None or x["data"][i]["HEX_values"] == []:
-#         print("THERE IS NO DATA FOR COLOR DATA FOR: " + x["data"][i]["objectNumber"])
-#         print("trying to fetch: " + x["data"][i]["objectNumber"])
-#         try:
-#             for z in range(0, len((x["data"][i]["iiif_image_uris"]))):
-#                 img = imageio.imread((x["data"][i]["iiif_image_uris"][z]))
-#                 print("image: " +x["data"][i]["iiif_image_uris"][z] + " done")
-#                 print("----------------------------------------------------------------------------------------------")
-#
-#                 modified_image = preprocess(img)
-#                 hex_list.append(fetch_hex(modified_image))
-#
-#                 modified_image = preprocess(img)
-#                 color_name_list.append(fetch_color_names(modified_image))
-#
-#             # insert list into supabase
-#             data = supabase.table("dmg_objects_LDES").update({"HEX_values": hex_list}).eq("objectNumber",on).execute() # insert HEX
-#             data = supabase.table("dmg_objects_LDES").update({"color_names": color_name_list}).eq("objectNumber",on).execute() # insert color_names
-#             print(color_name_list)
-#
-#         except Exception:
-#             print("can not fetch colors for: " + x["data"][i]["objectNumber"])
-#             pass
-#     else:
-#         print("SKIPPING " + x["data"][i]["objectNumber"])
-#         print("already has color data:")
-#         print( x["data"][i]["HEX_values"])
-
-
-
-
+## COMPUTER VISION PART
 def preprocess(raw):
     """preprocess input image for analyses"""
     image = cv2.resize(raw, (900, 600), interpolation=cv2.INTER_AREA)
     image = image.reshape(image.shape[0] * image.shape[1], 3)
     return image
-
+def parse_colors(_list):
+    #parse only selected objects (list)
+   for select in _list:
+         x = fetch_from_db(select)
+         on = x["data"][0]["objectNumber"]
+         try:
+            if x["data"][0]["HEX_values"]:
+                 print("SKIPPING " + on)
+                 continue
+            else:
+                print("there is no color data parsed yet for: " + on)
+                print("trying to fetch: " + on)
+                preprocess_and_insert(x["data"][0]["iiif_image_uris"], on)
+         except Exception as e:
+            print(f"Exception: {e}, can not fetch colors for: " + on)
 
 def fetch_hex(modified_image):
     """fetch hex values that appear in image"""
