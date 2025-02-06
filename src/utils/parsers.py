@@ -146,7 +146,7 @@ def preprocess_and_insert(image_uris, on):
 
     for uri in image_uris:
         img = imageio.imread(uri)
-        print("image: " + uri + "done")
+        print("image: " + uri )
         print("----------------------------------------------------------------------------------------------")
 
         modified_image = preprocess(img)
