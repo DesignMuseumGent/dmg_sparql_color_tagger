@@ -20,12 +20,13 @@ supabase: Client = create_client(URL, KEY)
 
 def fetch_objects_that_needed_color_reading():
     _objects_that_need_color_reading = []
-    _x = supabase.table('dmg_objects_LDES') \
+    _x = supabase.table("dmg_objects_LDES") \
         .select("objectNumber, iiif_manifest, iiif_image_uris, generated_at_time, HEX_values, CC_Licenses") \
         .execute()
 
     x = _x.json()  # parse as json
     x = json.loads(x)  # load
+    print(x)
 
     for i in range(0, len(x["data"])):
         if not x["data"][i]["iiif_image_uris"]:
@@ -40,7 +41,7 @@ def fetch_objects_that_needed_color_reading():
 def populate_database():
     ## fetch object number + manifest from supabase
     _x = supabase.table('dmg_objects_LDES') \
-        .select("objectNumber, iiif_manifest, iiif_image_uris, generated_at_time") \
+        .select('objectNumber, iiif_manifest, iiif_image_uris, generated_at_time') \
         .execute()
 
     x = _x.json() # parse as json
@@ -64,7 +65,6 @@ def populate_database():
                 response = urlopen(url) # try to open URL
                 _json = json.loads(response.read()) # parse response as JSON
 
-
                 try:
                     for im in range(0, len(_json) - 1): # iterate over images in manifest.
                         image = _json["sequences"][0]["canvases"][im]["images"][0]["resource"]["@id"]
@@ -85,16 +85,13 @@ def populate_database():
 
 
 def add_media():
-    _x = supabase.table('dmg_objects_LDES') \
-        .select("objectNumber, iiif_manifest, iiif_image_uris, generated_at_time, LDES_raw") \
-        .execute()
+    _x = supabase.table('dmg_objects_LDES').select('iiif_manifest, objectNumber, LDES_raw').execute()
+    x = _x.json() # parse as json
+    x = json.loads(x) # load
 
-    x = _x.json()  # parse as json
-    x = json.loads(x)  # load
+    print(x)
 
     for i in range(0, len(x["data"])):
-        if x["data"][i]["iiif_manifest"] is None:
-
             on = x["data"][i]["objectNumber"]
             _imageList = []
             _licenseList = []
@@ -127,8 +124,7 @@ def add_media():
                         , "iiif_image_uris": _imageList,
                         "CC_Licenses": _licenseList,
                         "attributions": _attributionList})
-                        .eq(
-                    "objectNumber", on).execute())
+                        .eq("objectNumber", on).execute())
 
             except Exception:
                 pass
@@ -136,13 +132,13 @@ def add_media():
 ## DATABASE MANAGEMENT
 def fetch_from_db(object_number):
     _x = supabase.table('dmg_objects_LDES').select("objectNumber, iiif_image_uris", "HEX_values", "CC_Licenses").eq(
-        "objectNumber").execute()
+        "objectNumber", object_number).execute()
     x = _x.json()
     return json.loads(x)
 
 
 def insert_into_db(table, column, data, object_number):
-    return supabase.table("dmg_objects_LDES").update({column: data}).eq()
+    return supabase.table("dmg_objects_LDES").update({column: data}).eq("objectNumber", object_number).execute()
 
 def preprocess_and_insert(image_uris, on):
     hex_list = []

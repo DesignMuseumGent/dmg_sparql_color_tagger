@@ -2,17 +2,22 @@ from src.utils.parsers import parse_colors, add_media, fetch_objects_that_needed
 
 def main():
 
-    update()
+    try:
+        print("start")
+        #update()
+    except Exception as e:
+        print(f"failed to update: {e}")
 
-    ## fetch only objects that have images (but are missing colors)
-    _objects = fetch_objects_that_needed_color_reading()
-
-    ## 3. parse colors;
-    parse_colors(_objects)
+    try:
+        ## fetch only objects that have images (but are missing colors)
+        _objects = fetch_objects_that_needed_color_reading()
+        ## 3. parse colors;
+        parse_colors(_objects)
+    except Exception as e:
+        print(f"failed to parse colors: {e}")
 
 def update():
     add_media()
 
-main(); ## add colors if needed.
-
-
+#main()
+main()
