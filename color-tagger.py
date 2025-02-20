@@ -20,4 +20,5 @@ def update():
     add_media()
 
 #main()
+update()
 main()

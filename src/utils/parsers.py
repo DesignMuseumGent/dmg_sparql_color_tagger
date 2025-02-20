@@ -87,31 +87,43 @@ def populate_database():
 
 
 def add_media():
-    _x = supabase.table('dmg_objects_LDES').select('iiif_manifest, objectNumber, LDES_raw').execute()
-    x = _x.json() # parse as json
-    x = json.loads(x) # load
+    # Fetch all objects from the database
+    _x = supabase.table('dmg_objects_LDES') \
+        .select('iiif_manifest, objectNumber, LDES_raw, iiif_image_uris') \
+        .execute()
 
-    print(x)
+    # Parse the JSON response
+    x = _x.json()  # Parse as JSON string
+    x = json.loads(x)  # Load JSON as a dictionary
 
-    for i in range(0, len(x["data"])):
-            on = x["data"][i]["objectNumber"]
+    logging.info(f"Total objects fetched: {len(x.get('data', []))}")
+
+    # Filter objects with empty or null 'iiif_images'
+    filtered_objects = [d for d in x["data"] if not d.get("iiif_image_uris")]
+
+    logging.info(f"Objects to process: {len(filtered_objects)}")
+
+    for obj in filtered_objects:
+            on =obj["objectNumber"]
             _imageList = []
             _licenseList = []
             _attributionList = []
-            print(on)
+            logging.info(f"Processing object: {on}")
+
             try:
                 # check if there is a manifest, if not skip.
-                url = x["data"][i]["LDES_raw"]["object"]["http://www.cidoc-crm.org/cidoc-crm/P129i_is_subject_of"][
-                    "@id"]  # fetch IIIF Manifest URL
-                print(url)
+                url = obj["LDES_raw"]["object"]["http://www.cidoc-crm.org/cidoc-crm/P129i_is_subject_of"]["@id"]
+                logging.info(f"Manifest URL: {url}")
                 response = urlopen(url)  # try to open URL
                 _json = json.loads(response.read())  # parse response as JSON
 
                 try:
+                    logging.info("fetch images")
                     for im in range(0, len(_json) - 1):  # iterate over images in manifest.
-                        image = _json["sequences"][0]["canvases"][im]["images"][0]["resource"]["@id"]
-                        license = _json["sequences"][0]["canvases"][im]["images"][0]["license"]
-                        attribution = _json["sequences"][0]["canvases"][im]["images"][0]["attribution"]
+                        image = _json["sequences"][im]["canvases"][im]["images"][0]["resource"]["@id"]
+                        logging.info(image)
+                        license = _json["sequences"][im]["canvases"][im]["images"][0]["license"]
+                        attribution = _json["sequences"][im]["canvases"][im]["images"][0]["attribution"]
                         _imageList.append(image)  # add individual images to temp list
                         _licenseList.append(license)
                         _attributionList.append(attribution)
@@ -120,6 +132,7 @@ def add_media():
                 except Exception:
                     pass
 
+                logging.info(_imageList)
                 data = (supabase.table("dmg_objects_LDES").update(
                     {
                         "iiif_manifest": url
