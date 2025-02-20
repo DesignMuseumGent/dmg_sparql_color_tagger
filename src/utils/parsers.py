@@ -12,6 +12,7 @@ import cv2
 from datetime import date, timedelta, datetime
 #import datetime
 from dateutil import parser
+import logging
 
 load_dotenv()
 URL: str = os.getenv("SUPABASE_URL")
@@ -26,16 +27,17 @@ def fetch_objects_that_needed_color_reading():
 
     x = _x.json()  # parse as json
     x = json.loads(x)  # load
-    print(x)
+    #print(x)
 
     for i in range(0, len(x["data"])):
         if not x["data"][i]["iiif_image_uris"]:
             if not x["data"][i]["CC_Licenses"] == "PERMISSION DENIED":
                 _objects_that_need_color_reading.append(x["data"][i]["objectNumber"])
         elif not x["data"][i]["HEX_values"]:
+            logging.info(f"processing: {x['data'][i]['objectNumber']}")
             _objects_that_need_color_reading.append(x["data"][i]["objectNumber"])
 
-    print("there are: " + str(len(_objects_that_need_color_reading)) + " objects with images but without colors")
+    logging.info("there are: " + str(len(_objects_that_need_color_reading)) + " objects with images but without colors")
     return _objects_that_need_color_reading
 
 def populate_database():
@@ -144,16 +146,39 @@ def preprocess_and_insert(image_uris, on):
     hex_list = []
     color_name_list=[]
 
-    for uri in image_uris:
-        img = imageio.imread(uri)
-        print("image: " + uri )
-        print("----------------------------------------------------------------------------------------------")
+    logging.info("-" * 80)
+    logging.info(f"Starting process for {len(image_uris)} images")
+    logging.info("-" * 80)
 
-        modified_image = preprocess(img)
-        hex_list.append(fetch_hex(modified_image))
+    for i, uri in enumerate(image_uris, start=1):
 
-        modified_image = preprocess(img)
-        color_name_list.append(fetch_color_names(modified_image))
+        try:
+            img = imageio.imread(uri)
+        except Exception as e:
+            logging.error(f"Failed to read image {uri}: {e}")
+            continue
+        logging.info("Image successfully loaded")
+
+        # Preprocess image
+        try:
+            modified_image = preprocess(img)
+            hex_value = fetch_hex(modified_image)
+            hex_list.append(hex_value)
+            logging.info(f"HEX value fetched: {hex_value}")
+
+            modified_image = preprocess(img)  # Preprocess opnieuw als nodig
+            color_names = fetch_color_names(modified_image)
+            color_name_list.append(color_names)
+            logging.info(f"Color names fetched: {color_names}")
+        except Exception as e:
+            logging.error(f"Error during processing for image {uri}: {e}")
+            continue
+
+        logging.info("-" * 80)
+
+    logging.info("Process completed")
+    logging.info("-" * 80)
+    logging.info("—" * 80)
 
     if color_name_list:
         insert_into_db("dmg_objects_LDES", "HEX_values", hex_list, on)
@@ -169,21 +194,34 @@ def preprocess(raw):
     image = cv2.resize(raw, (900, 600), interpolation=cv2.INTER_AREA)
     image = image.reshape(image.shape[0] * image.shape[1], 3)
     return image
+
 def parse_colors(_list):
-    #parse only selected objects (list)
-   for select in _list:
-         x = fetch_from_db(select)
-         on = x["data"][0]["objectNumber"]
-         try:
+    # Total objects for progress tracking
+    total_objects = len(_list)
+    logging.info(f"Starting parse_colors for {total_objects} objects.")
+
+    # Parse only selected objects (list)
+    for index, select in enumerate(_list, start=1):  # Voeg `enumerate` toe voor progressie
+        x = fetch_from_db(select)
+        on = x["data"][0]["objectNumber"]
+
+        try:
+            # Progress log
+            logging.info(f"Processing object {index}/{total_objects}: ObjectNumber = {on}")
+
             if x["data"][0]["HEX_values"]:
-                 print("SKIPPING " + on)
-                 continue
+                logging.info(f"SKIPPING {on}: Color data already exists.")
+                continue
             else:
-                print("there is no color data parsed yet for: " + on)
-                print("trying to fetch: " + on)
+                logging.info(f"No color data parsed yet for {on}. Starting fetch process.")
                 preprocess_and_insert(x["data"][0]["iiif_image_uris"], on)
-         except Exception as e:
-            print(f"Exception: {e}, can not fetch colors for: " + on)
+
+        except Exception as e:
+            logging.error(f"Exception: {e}. Cannot fetch colors for: {on}")
+
+    logging.info("parse_colors process completed.")
+    logging.info("-" * 80)
+
 
 def fetch_hex(modified_image):
     """fetch hex values that appear in image"""
